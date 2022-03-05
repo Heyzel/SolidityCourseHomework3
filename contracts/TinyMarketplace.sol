@@ -99,6 +99,45 @@ contract TinyMarketplace is OwnableUpgradeable{
     }
 
     /**
+    * @notice create a new Offer
+    * @param _tokenAddress is the address of the ERC1155 contract and cannot be the address 0
+    * @param _tokenID is the id of the token within the ERC1155 contract
+    * @param _amount is the amount to sell in the offer and cannot be 0 or less than the seller's tokens
+    * @param _deadline is the deadline of the offer and cannot be less than or equal to the timestamp
+    * @param _price is the price of the whole offer and there are no restriction for it
+    * @dev I'm assuming `_price` comes in a precision of `_decimals` decimals, e.g. If I want sell my 
+    * offer for 500 USD I have to send 500 * 10 ** (_decimals) i.e. 500000000000000000000
+    * because `_decimals` is 18
+    */
+    function createOffer(address _tokenAddress, uint _tokenID, uint _amount, uint _deadline, uint _price) external {
+        offers[offerCount].sellerAddress = msg.sender;
+
+        require(_tokenAddress != address(0), "Invalid token address.");
+        offers[offerCount].tokenAddress = _tokenAddress;
+
+        offers[offerCount].tokenID = _tokenID;
+
+        IERC1155 NFT = IERC1155(_tokenAddress);
+        require(_amount > 0, "Invalid amount.");
+        require(NFT.balanceOf(msg.sender, _tokenID) >= _amount, "Insufficient tokens");
+        offers[offerCount].amount = _amount;
+
+        require(_deadline > block.timestamp, "Invalid deadline.");
+        offers[offerCount].deadline = _deadline;
+
+        offers[offerCount].price = _price;
+
+        offers[offerCount].status = "ACTIVE";
+
+        offerCount++;
+    }
+
+    function cancelOffer(uint _offerID) external {
+        require(offers[_offerID].sellerAddress == msg.sender, "Only the seller can cancel his offer");
+        offers[_offerID].status = "CANCELLED";
+    }
+
+    /**
     * @notice buy an offer paying with ETH
     * @dev In case that don't send enough money: refund the money and revert.
     * In case that send the exact money: make the purchase and get the comission.
@@ -151,6 +190,7 @@ contract TinyMarketplace is OwnableUpgradeable{
     */
     function buyWithCrypto(string memory _crypto, uint _offerID) external OfferAvailable(_offerID) {
         uint256 tokenApproveds;
+        Offer memory _offer = offers[_offerID];
         int256 price;
         IERC20 token;
         IERC1155 NFT;
@@ -168,25 +208,28 @@ contract TinyMarketplace is OwnableUpgradeable{
         tokenApproveds = token.allowance(msg.sender, address(this));
 
         // ERC20 tokens needed to buy the offer
-        uint tokenToSpend = offers[_offerID].price / scaleDecimals(uint(price), baseDecimals);
+        uint tokenToSpend = _offer.price / scaleDecimals(uint(price), baseDecimals);
 
         // The number of the tokens approveds must be greater than or equal to the tokens needed for buy
         require(tokenApproveds >= tokenToSpend, "Not enough tokens to buy");
-        NFT = IERC1155(offers[_offerID].tokenAddress);
+        NFT = IERC1155(_offer.tokenAddress);
 
         // transfer the corresponding ERC20 tokens
         uint sellerPart = tokenToSpend*(100 - fee)/100;
         uint recipientPart = tokenToSpend*(fee)/100;
-        _safeTransferFrom20(token, msg.sender, offers[_offerID].sellerAddress , sellerPart);
+        _safeTransferFrom20(token, msg.sender, _offer.sellerAddress , sellerPart);
         _safeTransferFrom20(token, msg.sender, recipient , recipientPart);
 
         // transfer the corresponding ERC1155 tokens
-        NFT.safeTransferFrom(offers[_offerID].sellerAddress, msg.sender, offers[_offerID].tokenID, offers[_offerID].amount, "");
+        NFT.safeTransferFrom(_offer.sellerAddress, msg.sender, _offer.tokenID, _offer.amount, "");
         
         // update the status of the offer to SOLD
         offers[_offerID].status = "SOLD";
     }
 
+    /**
+    * @dev try to do the transfer and return a bool indicating whether it was successful or failed
+    */
     function _safeTransferFrom20(IERC20 _token, address _sender, address _recipient, uint _amount) private {
         bool sent = _token.transferFrom(_sender, _recipient, _amount);
         require(sent, "Token transfer failed.");
