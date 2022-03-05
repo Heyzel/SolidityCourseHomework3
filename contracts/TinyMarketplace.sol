@@ -13,6 +13,14 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 contract TinyMarketplace is OwnableUpgradeable{
 
+    event newOffer(address _seller, address _token,
+    uint _tokenID, uint _amount, uint _deadline,
+    uint _price, uint _offerID);
+
+    event offerCancelled(uint _offerID);
+
+    event offerBought(address _buyer, uint _offerID);
+
     /**
     * @dev Structure to store offers, name of variables are self explanatory but status.
     * status will be used to indicate different states of the offer, these are ACTIVE,
@@ -129,12 +137,15 @@ contract TinyMarketplace is OwnableUpgradeable{
 
         offers[offerCount].status = "ACTIVE";
 
+        emit newOffer(msg.sender, _tokenAddress, _tokenID, _amount, _deadline, _price, offerCount);
+
         offerCount++;
     }
 
     function cancelOffer(uint _offerID) external {
         require(offers[_offerID].sellerAddress == msg.sender, "Only the seller can cancel his offer");
         offers[_offerID].status = "CANCELLED";
+        emit offerCancelled(_offerID);
     }
 
     /**
@@ -158,8 +169,9 @@ contract TinyMarketplace is OwnableUpgradeable{
             // transfer the tokens
             NFT.safeTransferFrom(offers[_offerID].sellerAddress, msg.sender, offers[_offerID].tokenID, offers[_offerID].amount, "");
 
-            // update the status of the offer to SOLD
+            // update the status of the offer to SOLD and emit the bought
             offers[_offerID].status = "SOLD";
+            emit offerBought(msg.sender, _offerID);
 
             // getting the commission
             payable(recipient).transfer(offers[_offerID].price * fee / 100);
@@ -169,9 +181,9 @@ contract TinyMarketplace is OwnableUpgradeable{
             // transfer the tokens
             NFT.safeTransferFrom(offers[_offerID].sellerAddress, msg.sender, offers[_offerID].tokenID, offers[_offerID].amount, "");
 
-            // update the status of the offer to SOLD
-
+            // update the status of the offer to SOLD and emit the bought
             offers[_offerID].status = "SOLD";
+            emit offerBought(msg.sender, _offerID);
 
             //getting the commission
             payable(recipient).transfer(offers[_offerID].price * fee / 100);
@@ -223,8 +235,9 @@ contract TinyMarketplace is OwnableUpgradeable{
         // transfer the corresponding ERC1155 tokens
         NFT.safeTransferFrom(_offer.sellerAddress, msg.sender, _offer.tokenID, _offer.amount, "");
         
-        // update the status of the offer to SOLD
+        // update the status of the offer to SOLD and emit the bought
         offers[_offerID].status = "SOLD";
+        emit offerBought(msg.sender, _offerID);
     }
 
     /**
