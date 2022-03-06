@@ -24,7 +24,7 @@ contract TinyMarketplace is OwnableUpgradeable{
     /**
     * @dev Structure to store offers, name of variables are self explanatory but status.
     * status will be used to indicate different states of the offer, these are ACTIVE,
-    * CANCELLED, SOLD and OFFTIME
+    * CANCELLED, SOLD and OFFTIME in order to know the current state of the offer.
      */
     struct Offer {
         address sellerAddress;
@@ -43,6 +43,13 @@ contract TinyMarketplace is OwnableUpgradeable{
     modifier OfferAvailable(uint _offerID){
         _checkDeadline(_offerID);
         require(keccak256(abi.encodePacked(offers[_offerID].status)) == keccak256(abi.encodePacked("ACTIVE")), "The offer is not available");
+        _;
+    }
+
+    modifier TokensAvailables(uint _offerID){
+        Offer memory _offer = offers[_offerID];
+        IERC1155 NFT = IERC1155(_offer.tokenAddress);
+        require(NFT.balanceOf(_offer.sellerAddress, _offer.tokenID) >= _offer.amount, "The seller no longer has the tokens.");
         _;
     }
 
@@ -70,21 +77,21 @@ contract TinyMarketplace is OwnableUpgradeable{
     */
     IERC20 public LINK;
 
-    /**
+    /** @dev 
     * Network: Mainnet
     * Aggregator: ETH/USD
     * Address: 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419
     */
     AggregatorV3Interface internal ETHFee;
 
-    /**
+    /** @dev 
     * Network: Mainnet
     * Aggregator: DAI/USD
     * Address: 0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9
     */
     AggregatorV3Interface internal DAIFee;
 
-    /**
+    /** @dev
     * Network: Mainnet
     * Aggregator: LINK/USD
     * Address: 0x2c1d072e956AFFC0D435Cb7AC38EF18d24d9127c
@@ -94,16 +101,23 @@ contract TinyMarketplace is OwnableUpgradeable{
     /**
     * @dev Required to allow proxy contract deployer to take ownership
     */
-    function initialize() initializer public {
+    function initialize(
+        address ETHFeeAddress,
+        address DAIFeeAddress,
+        address LINKFeeAddress,
+        address DAIAddress,
+        address LINKAddress,
+        uint8 _Decimals,
+        uint8 _Fee) initializer public {
         OwnableUpgradeable.__Ownable_init();
-        _decimals = 18;
+        _decimals = _Decimals;
         recipient = owner();
-        fee = 1;
-        ETHFee = AggregatorV3Interface(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
-        DAIFee = AggregatorV3Interface(0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9);
-        LINKFee = AggregatorV3Interface(0x2c1d072e956AFFC0D435Cb7AC38EF18d24d9127c);
-        DAI = IERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
-        LINK = IERC20(0x514910771AF9Ca656af840dff83E8264EcF986CA);
+        fee = _Fee;
+        ETHFee = AggregatorV3Interface(ETHFeeAddress);
+        DAIFee = AggregatorV3Interface(DAIFeeAddress);
+        LINKFee = AggregatorV3Interface(LINKFeeAddress);
+        DAI = IERC20(DAIAddress);
+        LINK = IERC20(LINKAddress);
     }
 
     /**
@@ -155,41 +169,47 @@ contract TinyMarketplace is OwnableUpgradeable{
     * In case that send more than the necessary money: make the purchase, get the comission
     * and refund the exceed
     */
-    function buyWithETH(uint _offerID) external payable OfferAvailable(_offerID) {
+    function buyWithETH(uint _offerID) 
+    external 
+    payable 
+    OfferAvailable(_offerID) 
+    TokensAvailables(_offerID) {
+        Offer memory _offer = offers[_offerID];
         uint refund;
+        (,int price,,,) = ETHFee.latestRoundData();
+        uint8 baseDecimals = ETHFee.decimals();
+        uint priceInETH = _offer.price / scaleDecimals(uint(price), baseDecimals);
         IERC1155 NFT;
-        if(msg.value < offers[_offerID].price){
-            // refund and revert
-            refund = msg.value;
-            payable(msg.sender).transfer(refund);
-            revert("Insufficient funds!");
-        }else if(msg.value == offers[_offerID].price){
-            NFT = IERC1155(offers[_offerID].tokenAddress);
+        require(msg.value >= priceInETH, "Insufficient funds!");
+        if(msg.value == priceInETH){
+            NFT = IERC1155(_offer.tokenAddress);
 
             // transfer the tokens
-            NFT.safeTransferFrom(offers[_offerID].sellerAddress, msg.sender, offers[_offerID].tokenID, offers[_offerID].amount, "");
+            NFT.safeTransferFrom(_offer.sellerAddress, msg.sender, _offer.tokenID, _offer.amount, "");
 
             // update the status of the offer to SOLD and emit the bought
-            offers[_offerID].status = "SOLD";
+            _offer.status = "SOLD";
             emit offerBought(msg.sender, _offerID);
 
-            // getting the commission
-            payable(recipient).transfer(offers[_offerID].price * fee / 100);
-        }else if(msg.value > offers[_offerID].price){
-            NFT = IERC1155(offers[_offerID].tokenAddress);
+            // getting the commission and paying to the seller
+            payable(_offer.sellerAddress).transfer(priceInETH * (100 - fee) / 100);
+            payable(recipient).transfer(priceInETH * fee / 100);
+        }else if(msg.value > priceInETH){
+            NFT = IERC1155(_offer.tokenAddress);
 
             // transfer the tokens
-            NFT.safeTransferFrom(offers[_offerID].sellerAddress, msg.sender, offers[_offerID].tokenID, offers[_offerID].amount, "");
+            NFT.safeTransferFrom(_offer.sellerAddress, msg.sender, _offer.tokenID, _offer.amount, "");
 
             // update the status of the offer to SOLD and emit the bought
-            offers[_offerID].status = "SOLD";
+            _offer.status = "SOLD";
             emit offerBought(msg.sender, _offerID);
 
-            //getting the commission
-            payable(recipient).transfer(offers[_offerID].price * fee / 100);
+            // getting the commission and paying to the seller
+            payable(_offer.sellerAddress).transfer(priceInETH * (100 - fee) / 100);
+            payable(recipient).transfer(priceInETH * fee / 100);
 
             //refund the exceed
-            refund = msg.value - offers[_offerID].price;
+            refund = msg.value - priceInETH;
             payable(msg.sender).transfer(refund);
         }
     }
@@ -200,7 +220,10 @@ contract TinyMarketplace is OwnableUpgradeable{
     * buyer going to pay. Need scale the price to same base decimal that the ERC20 tokens to calculate
     * the price in tokens. No need to refund because only take the tokens needed to buy the offer.
     */
-    function buyWithCrypto(string memory _crypto, uint _offerID) external OfferAvailable(_offerID) {
+    function buyWithCrypto(string memory _crypto, uint _offerID) 
+    external 
+    OfferAvailable(_offerID) 
+    TokensAvailables(_offerID) {
         uint256 tokenApproveds;
         Offer memory _offer = offers[_offerID];
         int256 price;
@@ -236,7 +259,7 @@ contract TinyMarketplace is OwnableUpgradeable{
         NFT.safeTransferFrom(_offer.sellerAddress, msg.sender, _offer.tokenID, _offer.amount, "");
         
         // update the status of the offer to SOLD and emit the bought
-        offers[_offerID].status = "SOLD";
+        _offer.status = "SOLD";
         emit offerBought(msg.sender, _offerID);
     }
 
@@ -249,7 +272,8 @@ contract TinyMarketplace is OwnableUpgradeable{
     }
 
     /**
-    * @notice scale a number with a _priceDecimals decimals precision to _decimals decimal precision
+    * @notice scale a number with a `_priceDecimals` decimals precision to a number 
+    * with '_decimals' decimal precision
     */
     function scaleDecimals(uint256 _price, uint8 _priceDecimals) internal view returns (uint256) {
         if(_priceDecimals < _decimals) {

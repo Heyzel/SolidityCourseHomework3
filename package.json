@@ -4,6 +4,8 @@
   "main": "index.js",
   "scripts": {
     "build": "hardhat compile",
+    "deploy": "hardhat deploy --network rinkeby --tags tinymarket",
+    "verify": "hardhat --network rinkeby etherscan-verify --sleep",
     "test": "hardhat test",
     "test:coverage": "hardhat coverage"
   },
@@ -11,12 +13,14 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@nomiclabs/hardhat-ethers": "^2.0.5",
+    "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers",
+    "@nomiclabs/hardhat-etherscan": "^3.0.3",
     "@nomiclabs/hardhat-waffle": "^2.0.2",
     "chai": "^4.3.6",
     "ethereum-waffle": "^3.4.0",
     "ethers": "^5.5.4",
     "hardhat": "^2.8.4",
+    "hardhat-deploy": "^0.8.6",
     "solidity-coverage": "^0.7.19"
   },
   "dependencies": {
