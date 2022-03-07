@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.3;
 
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+//import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
@@ -11,7 +12,7 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 * @author Heyzel J. Moncada
 */
 
-contract TinyMarketplace is OwnableUpgradeable{
+contract TinyMarketplace is AccessControlUpgradeable {
 
     event newOffer(address _seller, address _token,
     uint _tokenID, uint _amount, uint _deadline,
@@ -109,9 +110,12 @@ contract TinyMarketplace is OwnableUpgradeable{
         address LINKAddress,
         uint8 _Decimals,
         uint8 _Fee) initializer public {
-        OwnableUpgradeable.__Ownable_init();
+        __AccessControl_init();
+
+		_setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
+
         _decimals = _Decimals;
-        recipient = owner();
+        recipient = _msgSender();
         fee = _Fee;
         ETHFee = AggregatorV3Interface(ETHFeeAddress);
         DAIFee = AggregatorV3Interface(DAIFeeAddress);
@@ -298,7 +302,7 @@ contract TinyMarketplace is OwnableUpgradeable{
     * @notice Update the recipient of the commissions
     * @dev Only the owner is able to change the recipient
     */
-    function setRecipient(address _addr) external onlyOwner {
+    function setRecipient(address _addr) external onlyRole(DEFAULT_ADMIN_ROLE) {
         recipient = _addr;
     }
 
@@ -306,7 +310,7 @@ contract TinyMarketplace is OwnableUpgradeable{
     * @notice Update the fee of the sales
     * @dev Only the owner is able to change the fee
     */
-    function setFee(uint8 _fee) external onlyOwner {
+    function setFee(uint8 _fee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         fee = _fee;
     }
 
