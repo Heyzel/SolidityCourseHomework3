@@ -18,9 +18,11 @@ contract TinyMarketplace is AccessControlUpgradeable {
     uint _tokenID, uint _amount, uint _deadline,
     uint _price, uint _offerID);
 
-    event offerCancelled(uint _offerID);
+    event offerCancelled(uint _offerID, address canceledBy);
 
-    event offerBought(address _buyer, uint _offerID);
+    event offerBought(address _buyer, uint _offerID,
+     uint tokensSpents, string tokenSpent, 
+     uint dateOfPurchase);
 
     /**
     * @dev Structure to store offers, name of variables are self explanatory but status.
@@ -163,7 +165,7 @@ contract TinyMarketplace is AccessControlUpgradeable {
     function cancelOffer(uint _offerID) external {
         require(offers[_offerID].sellerAddress == msg.sender, "Only the seller can cancel his offer");
         offers[_offerID].status = "CANCELLED";
-        emit offerCancelled(_offerID);
+        emit offerCancelled(_offerID, msg.sender);
     }
 
     /**
@@ -180,41 +182,53 @@ contract TinyMarketplace is AccessControlUpgradeable {
     TokensAvailables(_offerID) {
         Offer memory _offer = offers[_offerID];
         uint refund;
+        bool isPaid;
         (,int price,,,) = ETHFee.latestRoundData();
         uint8 baseDecimals = ETHFee.decimals();
-        uint priceInETH = _offer.price / scaleDecimals(uint(price), baseDecimals);
+        uint priceInETH = (_offer.price*(10**_decimals)) / scaleDecimals(uint(price), baseDecimals);
         IERC1155 NFT;
         require(msg.value >= priceInETH, "Insufficient funds!");
         if(msg.value == priceInETH){
             NFT = IERC1155(_offer.tokenAddress);
 
+            // getting the commission and paying to the seller
+            (isPaid, ) = payable(_offer.sellerAddress).call{value: priceInETH * (100 - fee) / 100}("");
+            require(isPaid, "An error occurred in the payment to seller");
+            (isPaid, ) = payable(recipient).call{value: priceInETH * fee / 100}("");
+            require(isPaid, "An error occurred in the payment to contract");
+
             // transfer the tokens
             NFT.safeTransferFrom(_offer.sellerAddress, msg.sender, _offer.tokenID, _offer.amount, "");
 
             // update the status of the offer to SOLD and emit the bought
             _offer.status = "SOLD";
-            emit offerBought(msg.sender, _offerID);
+            emit offerBought(msg.sender, _offerID, priceInETH, "ETH", block.timestamp);
 
-            // getting the commission and paying to the seller
-            payable(_offer.sellerAddress).transfer(priceInETH * (100 - fee) / 100);
-            payable(recipient).transfer(priceInETH * fee / 100);
+           
         }else if(msg.value > priceInETH){
             NFT = IERC1155(_offer.tokenAddress);
 
+            //refund the exceed
+            refund = msg.value - priceInETH;
+            (isPaid, ) = payable(msg.sender).call{value: refund}("");
+            require(isPaid, "An error occurred in the refund");
+
+             // getting the commission and paying to the seller
+            (isPaid, ) = payable(_offer.sellerAddress).call{value: priceInETH * (100 - fee) / 100}("");
+            require(isPaid, "An error occurred in the payment to seller");
+            (isPaid, ) = payable(recipient).call{value: priceInETH * fee / 100}("");
+            require(isPaid, "An error occurred in the payment to contract");
+
             // transfer the tokens
             NFT.safeTransferFrom(_offer.sellerAddress, msg.sender, _offer.tokenID, _offer.amount, "");
 
             // update the status of the offer to SOLD and emit the bought
             _offer.status = "SOLD";
-            emit offerBought(msg.sender, _offerID);
+            emit offerBought(msg.sender, _offerID, priceInETH, "ETH", block.timestamp);
 
-            // getting the commission and paying to the seller
-            payable(_offer.sellerAddress).transfer(priceInETH * (100 - fee) / 100);
-            payable(recipient).transfer(priceInETH * fee / 100);
+           
 
-            //refund the exceed
-            refund = msg.value - priceInETH;
-            payable(msg.sender).transfer(refund);
+            
         }
     }
 
@@ -247,7 +261,7 @@ contract TinyMarketplace is AccessControlUpgradeable {
         tokenApproveds = token.allowance(msg.sender, address(this));
 
         // ERC20 tokens needed to buy the offer
-        uint tokenToSpend = _offer.price / scaleDecimals(uint(price), baseDecimals);
+        uint tokenToSpend = _offer.price*(10**baseDecimals) / scaleDecimals(uint(price), baseDecimals);
 
         // The number of the tokens approveds must be greater than or equal to the tokens needed for buy
         require(tokenApproveds >= tokenToSpend, "Not enough tokens to buy");
@@ -264,7 +278,7 @@ contract TinyMarketplace is AccessControlUpgradeable {
         
         // update the status of the offer to SOLD and emit the bought
         _offer.status = "SOLD";
-        emit offerBought(msg.sender, _offerID);
+        emit offerBought(msg.sender, _offerID, tokenToSpend, _crypto, block.timestamp);
     }
 
     /**
