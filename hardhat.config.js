@@ -1,5 +1,6 @@
 require("@nomiclabs/hardhat-waffle");
-require("@nomiclabs/hardhat-ethers");
+require("hardhat-deploy-ethers");
+//require("@nomiclabs/hardhat-ethers");
 require("@nomiclabs/hardhat-etherscan");
 require("@openzeppelin/hardhat-upgrades");
 require("hardhat-deploy");
@@ -13,6 +14,7 @@ module.exports = {
     hardhat: {
       forking: {
         url: `https://eth-mainnet.alchemyapi.io/v2/${process.env.ALCHEMY_KEY}`,
+        blockNumber: 11589707,
       },
       chainId: 31337,
     },
@@ -36,6 +38,9 @@ module.exports = {
   },
   namedAccounts: {
     deployer: 0,
+    feeRecipient: 1,
+    buyer: 2,
+    seller: 3,
   },
   paths:{
     deploy: 'deploy',

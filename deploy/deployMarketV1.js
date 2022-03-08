@@ -8,18 +8,14 @@ const _Fee = 1;
 
 const _args = [ETHFeeAddress, DAIFeeAddress, LINKFeeAddress, DAIAddress, LINKAddress, _Decimals, _Fee];
 
-module.exports = async ({
-    getNamedAccounts, 
-    deployments, 
-    getChainId,
-    network}) => {
+module.exports = async ({getNamedAccounts, deployments}) => {
     const { deploy } = deployments;
     const { deployer } = await getNamedAccounts();
 
     await deploy('TinyMarketplace', {
         from: deployer,
         proxy: {
-            owner: deployer,
+            proxyContract: 'OpenZeppelinTransparentProxy',
             execute: {
                 init: {
                     methodName: "initialize",
@@ -32,4 +28,4 @@ module.exports = async ({
 
 };
 
-module.exports.tags = ['tinymarket'];
+module.exports.tags = ['TinyMarketplace'];

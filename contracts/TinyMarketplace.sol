@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.3;
 
-//import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
@@ -12,7 +11,7 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 * @author Heyzel J. Moncada
 */
 
-contract TinyMarketplace is AccessControlUpgradeable {
+contract TinyMarketplace is OwnableUpgradeable {
 
     event newOffer(address _seller, address _token,
     uint _tokenID, uint _amount, uint _deadline,
@@ -21,14 +20,13 @@ contract TinyMarketplace is AccessControlUpgradeable {
     event offerCancelled(uint _offerID, address canceledBy);
 
     event offerBought(address _buyer, uint _offerID,
-     uint tokensSpents, string tokenSpent, 
-     uint dateOfPurchase);
+     uint tokensSpents, uint dateOfPurchase);
 
     /**
     * @dev Structure to store offers, name of variables are self explanatory but status.
     * status will be used to indicate different states of the offer, these are ACTIVE,
     * CANCELLED, SOLD and OFFTIME in order to know the current state of the offer.
-     */
+    */
     struct Offer {
         address sellerAddress;
         address tokenAddress;
@@ -49,6 +47,9 @@ contract TinyMarketplace is AccessControlUpgradeable {
         _;
     }
 
+    /**
+    * @dev This modifier check the tokens in the offer are availables
+    */
     modifier TokensAvailables(uint _offerID){
         Offer memory _offer = offers[_offerID];
         IERC1155 NFT = IERC1155(_offer.tokenAddress);
@@ -62,9 +63,9 @@ contract TinyMarketplace is AccessControlUpgradeable {
     */
     mapping(uint => Offer) offers;
     uint offerCount;
-    address recipient;
-    uint8 _decimals;
-    uint8 fee;
+    address public recipient;
+    uint8 public _decimals;
+    uint8 public fee;
 
     /**
     * Network: Mainnet
@@ -85,21 +86,21 @@ contract TinyMarketplace is AccessControlUpgradeable {
     * Aggregator: ETH/USD
     * Address: 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419
     */
-    AggregatorV3Interface internal ETHFee;
+    AggregatorV3Interface public ETHFee;
 
     /** @dev 
     * Network: Mainnet
     * Aggregator: DAI/USD
     * Address: 0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9
     */
-    AggregatorV3Interface internal DAIFee;
+    AggregatorV3Interface public DAIFee;
 
     /** @dev
     * Network: Mainnet
     * Aggregator: LINK/USD
     * Address: 0x2c1d072e956AFFC0D435Cb7AC38EF18d24d9127c
     */
-    AggregatorV3Interface internal LINKFee;
+    AggregatorV3Interface public LINKFee;
     
     /**
     * @dev Required to allow proxy contract deployer to take ownership
@@ -112,9 +113,7 @@ contract TinyMarketplace is AccessControlUpgradeable {
         address LINKAddress,
         uint8 _Decimals,
         uint8 _Fee) initializer public {
-        __AccessControl_init();
-
-		_setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
+        __Ownable_init();
 
         _decimals = _Decimals;
         recipient = _msgSender();
@@ -202,7 +201,7 @@ contract TinyMarketplace is AccessControlUpgradeable {
 
             // update the status of the offer to SOLD and emit the bought
             _offer.status = "SOLD";
-            emit offerBought(msg.sender, _offerID, priceInETH, "ETH", block.timestamp);
+            emit offerBought(msg.sender, _offerID, priceInETH, block.timestamp);
 
            
         }else if(msg.value > priceInETH){
@@ -224,7 +223,7 @@ contract TinyMarketplace is AccessControlUpgradeable {
 
             // update the status of the offer to SOLD and emit the bought
             _offer.status = "SOLD";
-            emit offerBought(msg.sender, _offerID, priceInETH, "ETH", block.timestamp);
+            emit offerBought(msg.sender, _offerID, priceInETH, block.timestamp);
 
            
 
@@ -278,7 +277,7 @@ contract TinyMarketplace is AccessControlUpgradeable {
         
         // update the status of the offer to SOLD and emit the bought
         _offer.status = "SOLD";
-        emit offerBought(msg.sender, _offerID, tokenToSpend, _crypto, block.timestamp);
+        emit offerBought(msg.sender, _offerID, tokenToSpend, block.timestamp);
     }
 
     /**
@@ -316,7 +315,7 @@ contract TinyMarketplace is AccessControlUpgradeable {
     * @notice Update the recipient of the commissions
     * @dev Only the owner is able to change the recipient
     */
-    function setRecipient(address _addr) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setRecipient(address _addr) external onlyOwner {
         recipient = _addr;
     }
 
@@ -324,7 +323,7 @@ contract TinyMarketplace is AccessControlUpgradeable {
     * @notice Update the fee of the sales
     * @dev Only the owner is able to change the fee
     */
-    function setFee(uint8 _fee) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setFee(uint8 _fee) external onlyOwner {
         fee = _fee;
     }
 
