@@ -62,7 +62,7 @@ contract TinyMarketplace is OwnableUpgradeable {
     * offerCount: will be the amount of offers
     */
     mapping(uint => Offer) offers;
-    uint offerCount;
+    uint public offerCount;
     address public recipient;
     uint8 public _decimals;
     uint8 public fee;

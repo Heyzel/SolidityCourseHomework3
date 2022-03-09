@@ -14,7 +14,7 @@ module.exports = {
     hardhat: {
       forking: {
         url: `https://eth-mainnet.alchemyapi.io/v2/${process.env.ALCHEMY_KEY}`,
-        blockNumber: 11589707,
+        blockNumber: 14348475,
       },
       chainId: 31337,
     },
