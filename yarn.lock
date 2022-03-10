@@ -3377,7 +3377,7 @@ ethers@^4.0.32:
     uuid "2.0.1"
     xmlhttprequest "1.8.0"
 
-ethers@^5.0.1, ethers@^5.0.2, ethers@^5.5.2, ethers@^5.5.4:
+ethers@^5.0.0, ethers@^5.0.1, ethers@^5.0.2, ethers@^5.5.2, ethers@^5.5.4:
   version "5.5.4"
   resolved "https://registry.yarnpkg.com/ethers/-/ethers-5.5.4.tgz#e1155b73376a2f5da448e4a33351b57a885f4352"
   integrity sha512-N9IAXsF8iKhgHIC6pquzRgPBJEzc9auw3JoRkaKe+y4Wl/LFBtDDunNe7YmdomontECAcC5APaAgWZBiu1kirw==
@@ -4136,6 +4136,13 @@ hardhat-deploy@^0.8.6:
     match-all "^1.2.6"
     murmur-128 "^0.2.1"
     qs "^6.9.4"
+
+hardhat-gas-trackooor@^1.0.2:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/hardhat-gas-trackooor/-/hardhat-gas-trackooor-1.0.2.tgz#8490bebf2a33242a0bcc210edb1a84ca358a6c1d"
+  integrity sha512-k8qvLBB0+vG/XET8ArgYBoBOB9C9SyonFew9vHmJ8qxVqAv4UL9bSB1SuSQt9dbTPWbZI9mmhbUmoTshJF13cQ==
+  dependencies:
+    ethers "^5.0.0"
 
 hardhat@^2.9.1:
   version "2.9.1"

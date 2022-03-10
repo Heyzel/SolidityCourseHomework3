@@ -5,6 +5,7 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import "hardhat/console.sol";
 
 /**
 * @title A tiny marketplace for ERC1155 tokens
@@ -19,8 +20,7 @@ contract TinyMarketplace is OwnableUpgradeable {
 
     event offerCancelled(uint _offerID, address canceledBy);
 
-    event offerBought(address _buyer, uint _offerID,
-     uint tokensSpents, uint dateOfPurchase);
+    event offerBought(address _buyer, uint _offerID, uint tokensSpents);
 
     /**
     * @dev Structure to store offers, name of variables are self explanatory but status.
@@ -42,8 +42,8 @@ contract TinyMarketplace is OwnableUpgradeable {
     * the offer is only available to buy if the status is ACTIVE
     */
     modifier OfferAvailable(uint _offerID){
-        _checkDeadline(_offerID);
         require(keccak256(abi.encodePacked(offers[_offerID].status)) == keccak256(abi.encodePacked("ACTIVE")), "The offer is not available");
+        require(offers[_offerID].deadline > block.timestamp, "The offer time expired");
         _;
     }
 
@@ -200,8 +200,8 @@ contract TinyMarketplace is OwnableUpgradeable {
             NFT.safeTransferFrom(_offer.sellerAddress, msg.sender, _offer.tokenID, _offer.amount, "");
 
             // update the status of the offer to SOLD and emit the bought
-            _offer.status = "SOLD";
-            emit offerBought(msg.sender, _offerID, priceInETH, block.timestamp);
+            offers[_offerID].status = "SOLD";
+            emit offerBought(msg.sender, _offerID, priceInETH);
 
            
         }else if(msg.value > priceInETH){
@@ -222,8 +222,8 @@ contract TinyMarketplace is OwnableUpgradeable {
             NFT.safeTransferFrom(_offer.sellerAddress, msg.sender, _offer.tokenID, _offer.amount, "");
 
             // update the status of the offer to SOLD and emit the bought
-            _offer.status = "SOLD";
-            emit offerBought(msg.sender, _offerID, priceInETH, block.timestamp);
+             offers[_offerID].status = "SOLD";
+            emit offerBought(msg.sender, _offerID, priceInETH);
 
            
 
@@ -255,29 +255,29 @@ contract TinyMarketplace is OwnableUpgradeable {
             (,price,,,) = LINKFee.latestRoundData();
             baseDecimals = LINKFee.decimals();
             token = LINK;
+        }else{
+            revert("That Token is not accepted in this marketplace");
         }
         // ERC20 tokens approveds by msg.sender to spend in order to buy the offer
         tokenApproveds = token.allowance(msg.sender, address(this));
 
         // ERC20 tokens needed to buy the offer
-        uint tokenToSpend = _offer.price*(10**baseDecimals) / scaleDecimals(uint(price), baseDecimals);
+        uint tokenToSpend = _offer.price*(10**_decimals) / scaleDecimals(uint(price), baseDecimals);
 
         // The number of the tokens approveds must be greater than or equal to the tokens needed for buy
         require(tokenApproveds >= tokenToSpend, "Not enough tokens to buy");
         NFT = IERC1155(_offer.tokenAddress);
 
         // transfer the corresponding ERC20 tokens
-        uint sellerPart = tokenToSpend*(100 - fee)/100;
-        uint recipientPart = tokenToSpend*(fee)/100;
-        _safeTransferFrom20(token, msg.sender, _offer.sellerAddress , sellerPart);
-        _safeTransferFrom20(token, msg.sender, recipient , recipientPart);
+        _safeTransferFrom20(token, msg.sender, _offer.sellerAddress , tokenToSpend*(100 - fee)/100);
+        _safeTransferFrom20(token, msg.sender, recipient , tokenToSpend*(fee)/100);
 
         // transfer the corresponding ERC1155 tokens
         NFT.safeTransferFrom(_offer.sellerAddress, msg.sender, _offer.tokenID, _offer.amount, "");
         
         // update the status of the offer to SOLD and emit the bought
-        _offer.status = "SOLD";
-        emit offerBought(msg.sender, _offerID, tokenToSpend, block.timestamp);
+        offers[_offerID].status = "SOLD";
+        emit offerBought(msg.sender, _offerID, tokenToSpend);
     }
 
     /**
@@ -293,22 +293,7 @@ contract TinyMarketplace is OwnableUpgradeable {
     * with '_decimals' decimal precision
     */
     function scaleDecimals(uint256 _price, uint8 _priceDecimals) internal view returns (uint256) {
-        if(_priceDecimals < _decimals) {
-            return _price * uint256(10 ** uint256(_decimals - _priceDecimals));
-        }else if(_priceDecimals > _decimals) {
-            return _price / uint256(10 ** uint256(_priceDecimals - _decimals));
-        }
-        return _price;
-    }
-
-    /**
-    * @dev Update the status if deadline is over and the state of the offer is ACTIVE
-    */
-    function _checkDeadline(uint _offerID) internal {
-        if(keccak256(abi.encodePacked(offers[_offerID].status)) == keccak256(abi.encodePacked("ACTIVE")) 
-        && offers[_offerID].deadline < block.timestamp){
-            offers[_offerID].status = "OFFTIME";
-        }
+        return _price * uint256(10 ** uint256(_decimals - _priceDecimals));
     }
 
     /**

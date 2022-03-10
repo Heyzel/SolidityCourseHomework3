@@ -4,6 +4,7 @@ require("hardhat-deploy-ethers");
 require("@nomiclabs/hardhat-etherscan");
 require("@openzeppelin/hardhat-upgrades");
 require("hardhat-deploy");
+require("hardhat-gas-trackooor");
 require("solidity-coverage");
 require("dotenv").config();
 
@@ -15,6 +16,8 @@ module.exports = {
       forking: {
         url: `https://eth-mainnet.alchemyapi.io/v2/${process.env.ALCHEMY_KEY}`,
         blockNumber: 14348475,
+        gas: 7000000,
+        gasPrice: 1000,
       },
       chainId: 31337,
     },
